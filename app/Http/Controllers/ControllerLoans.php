@@ -41,10 +41,29 @@ class ControllerLoans extends Controller
      */
     public function store(RequestLoan $request)
     {
-        $book = $request->validated();
-        $book['fecha_presatmo'] = now()->toTimeString();
-        $book = Request::create($request->validated());
-        return response()->json($book);
+        $validated = $request->validated();
+
+        $isbn = $request->input('ISBN');
+        $book = \App\Models\Books::where('ISBN', $isbn)->first();
+        if (!$book) {
+            return response()->json(['error' => 'Libro no encontrado'], 404);
+        }
+
+        if ($book->Copias_disponibles <= 0) {
+            return response()->json(['error' => 'No hay copias disponibles'], 409);
+        }
+
+        $loan = Loans::create([
+            'Nombre_solicitante' => $validated['nombre_solicitante'],
+            'Fecha_prestamo' => now(),
+            'Fecha_devolucion' => null,
+            'books_id' => $book->id ?? null
+        ]);
+
+        $book->Copias_disponibles -= 1;
+        $book->save();
+
+        return response()->json($loan, 201);
     }
 
     
@@ -53,8 +72,24 @@ class ControllerLoans extends Controller
      */
     public function update(Request $request, Loans $loans)
     {
-        $book = $request['fecha_devolucion'] = now()->toTimeString();
-        $book = Request::create($request->validated());
-        return response()->json($book);
+        $loan = Loans::find($loans->id);
+        if (!$loan) {
+            return response()->json(['error' => 'Préstamo no encontrado'], 404);
+        }
+
+        if ($loan->Fecha_devolucion !== null) {
+            return response()->json(['error' => 'El libro ya fue devuelto'], 409);
+        }
+
+        $loan->Fecha_devolucion = now();
+        $loan->save();
+
+        $book = \App\Models\Books::find($loan->books_id);
+        if ($book) {
+            $book->Copias_disponibles += 1;
+            $book->save();
+        }
+
+        return response()->json($loan, 200);
     }
 }
