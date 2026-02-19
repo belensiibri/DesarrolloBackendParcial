@@ -19,11 +19,4 @@ class Books extends Model
         'Estado'
     ];
 
-    public function posts():HasMany
-    {
-        return $this->hasMany(Post::class);
-    }
-    
-
-
 }
